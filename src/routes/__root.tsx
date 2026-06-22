@@ -86,6 +86,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "author", content: "DMatch" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { title: "Lovable App" },
+      { property: "og:title", content: "Lovable App" },
+      { name: "twitter:title", content: "Lovable App" },
+      { name: "description", content: "AI-powered app analyzes social profiles to assess authenticity and compatibility for dating and professional networking." },
+      { property: "og:description", content: "AI-powered app analyzes social profiles to assess authenticity and compatibility for dating and professional networking." },
+      { name: "twitter:description", content: "AI-powered app analyzes social profiles to assess authenticity and compatibility for dating and professional networking." },
+      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2cc6a30b-4d3b-4b5f-b825-646b10117f4e/id-preview-3a0a6045--19cac3b5-0f93-4fe4-baac-6d6a1c1d9d04.lovable.app-1782118032798.png" },
+      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/2cc6a30b-4d3b-4b5f-b825-646b10117f4e/id-preview-3a0a6045--19cac3b5-0f93-4fe4-baac-6d6a1c1d9d04.lovable.app-1782118032798.png" },
     ],
     links: [
       {
