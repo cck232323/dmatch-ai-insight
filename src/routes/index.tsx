@@ -14,6 +14,7 @@ import {
   Skull,
   Sparkles,
   Upload,
+  X,
   Zap,
 } from "lucide-react";
 import {
