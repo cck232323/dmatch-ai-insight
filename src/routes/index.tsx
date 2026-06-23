@@ -231,16 +231,22 @@ type HeroProps = {
   setUrl: (v: string) => void;
   notes: string;
   setNotes: (v: string) => void;
-  imageDataUrl: string | null;
-  imageName: string | null;
+  images: UploadedImage[];
+  totalBytes: number;
   onPickFile: () => void;
-  onClearImage: () => void;
+  onRemoveImage: (idx: number) => void;
+  onClearImages: () => void;
   onSubmit: () => void;
   canSubmit: boolean;
   loading: boolean;
 };
 
+function formatMB(bytes: number): string {
+  return (bytes / (1024 * 1024)).toFixed(1);
+}
+
 function Hero(props: HeroProps) {
+  const hasImages = props.images.length > 0;
   return (
     <section className="scanlines relative overflow-hidden border-b border-border">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_-10%,rgba(255,45,85,0.18),transparent_60%)]" />
@@ -268,7 +274,7 @@ function Hero(props: HeroProps) {
               <LinkIcon className="h-4 w-4" /> Paste URL
             </ModeTab>
             <ModeTab active={props.mode === "image"} onClick={() => props.setMode("image")}>
-              <Upload className="h-4 w-4" /> Upload screenshot
+              <Upload className="h-4 w-4" /> Upload screenshots
             </ModeTab>
           </div>
 
@@ -282,37 +288,73 @@ function Hero(props: HeroProps) {
                 autoFocus
               />
             ) : (
-              <button
-                type="button"
-                onClick={props.onPickFile}
-                className={cn(
-                  "flex w-full items-center justify-between border border-dashed border-border bg-background px-4 py-6 text-left transition hover:border-primary",
-                  props.imageDataUrl && "border-truth",
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <Upload className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <div className="font-display text-sm font-medium">
-                      {props.imageName ?? "Drop a profile screenshot"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      JPG / PNG up to 6MB
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={props.onPickFile}
+                  disabled={props.images.length >= MAX_IMAGES}
+                  className={cn(
+                    "flex w-full items-center justify-between border border-dashed border-border bg-background px-4 py-6 text-left transition hover:border-primary disabled:cursor-not-allowed disabled:opacity-60",
+                    hasImages && "border-truth",
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Upload className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <div className="font-display text-sm font-medium">
+                        {hasImages
+                          ? `已选 ${props.images.length}/${MAX_IMAGES} · ${formatMB(props.totalBytes)}MB / 20MB`
+                          : "Drop profile screenshots"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        JPG / PNG · up to {MAX_IMAGES} images · 20MB total
+                      </div>
                     </div>
                   </div>
-                </div>
-                {props.imageDataUrl && (
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      props.onClearImage();
-                    }}
-                    className="font-mono text-xs text-muted-foreground underline"
-                  >
-                    clear
-                  </span>
+                  {hasImages && (
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        props.onClearImages();
+                      }}
+                      className="font-mono text-xs text-muted-foreground underline"
+                    >
+                      clear all
+                    </span>
+                  )}
+                </button>
+
+                {hasImages && (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                    {props.images.map((img, idx) => (
+                      <div
+                        key={`${img.name}-${idx}`}
+                        className="group relative aspect-square overflow-hidden border border-border bg-background"
+                      >
+                        {img.dataUrl ? (
+                          <img
+                            src={img.dataUrl}
+                            alt={img.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => props.onRemoveImage(idx)}
+                          aria-label={`Remove ${img.name}`}
+                          className="absolute right-1 top-1 grid h-5 w-5 place-items-center border border-border bg-background/90 text-foreground opacity-90 transition hover:bg-primary hover:text-primary-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </button>
+              </div>
             )}
 
             <Textarea
