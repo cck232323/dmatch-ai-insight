@@ -180,7 +180,7 @@ export function normalizeAnalysisReport(value: unknown): AnalysisReport {
 
 const InputSchema = z.object({
   url: z.string().url().optional(),
-  imageDataUrl: z.string().optional(),
+  imageDataUrls: z.array(z.string()).max(6).optional(),
   notes: z.string().max(2000).optional(),
 });
 
