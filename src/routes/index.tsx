@@ -54,13 +54,17 @@ export const Route = createFileRoute("/")({
 
 type Mode = "url" | "image";
 
+type UploadedImage = { dataUrl: string; name: string; size: number };
+
+const MAX_IMAGES = 6;
+const MAX_TOTAL_BYTES = 20 * 1024 * 1024;
+
 function Index() {
   const fn = useServerFn(analyzeProfile);
   const [mode, setMode] = useState<Mode>("url");
   const [url, setUrl] = useState("");
   const [notes, setNotes] = useState("");
-  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
-  const [imageName, setImageName] = useState<string | null>(null);
+  const [images, setImages] = useState<UploadedImage[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -69,7 +73,8 @@ function Index() {
       fn({
         data: {
           url: mode === "url" && url ? url : undefined,
-          imageDataUrl: mode === "image" && imageDataUrl ? imageDataUrl : undefined,
+          imageDataUrls:
+            mode === "image" && images.length ? images.map((i) => i.dataUrl) : undefined,
           notes: notes || undefined,
         },
       }),
@@ -80,23 +85,61 @@ function Index() {
     },
   });
 
-  const onFile = (file: File) => {
-    if (file.size > 6 * 1024 * 1024) {
-      alert("Max 6MB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setImageDataUrl(reader.result as string);
-      setImageName(file.name);
-    };
-    reader.readAsDataURL(file);
+  const onFiles = (files: FileList | File[]) => {
+    const incoming = Array.from(files);
+    if (!incoming.length) return;
+
+    setImages((prev) => {
+      const next = [...prev];
+      let totalBytes = next.reduce((sum, img) => sum + img.size, 0);
+      let truncated = false;
+      let oversized = false;
+
+      for (const file of incoming) {
+        if (next.length >= MAX_IMAGES) {
+          truncated = true;
+          break;
+        }
+        if (totalBytes + file.size > MAX_TOTAL_BYTES) {
+          oversized = true;
+          continue;
+        }
+        next.push({ dataUrl: "", name: file.name, size: file.size });
+        totalBytes += file.size;
+
+        const idx = next.length - 1;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          setImages((curr) => {
+            const updated = [...curr];
+            // Match by name+size in case order shifted (e.g. user removed one mid-read)
+            const target = updated.findIndex(
+              (img, i) =>
+                i >= 0 && img.name === file.name && img.size === file.size && !img.dataUrl,
+            );
+            if (target >= 0) updated[target] = { ...updated[target], dataUrl };
+            return updated;
+          });
+        };
+        reader.readAsDataURL(file);
+        void idx;
+      }
+
+      if (truncated) alert(`最多上传 ${MAX_IMAGES} 张截图`);
+      else if (oversized) alert("合计大小不超过 20MB，部分图片已跳过");
+
+      return next;
+    });
   };
+
+  const totalBytes = images.reduce((sum, img) => sum + img.size, 0);
+  const allLoaded = images.every((img) => img.dataUrl);
 
   const canSubmit =
     !mutation.isPending &&
     ((mode === "url" && url.trim().length > 0) ||
-      (mode === "image" && imageDataUrl !== null));
+      (mode === "image" && images.length > 0 && allLoaded));
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -108,13 +151,13 @@ function Index() {
         setUrl={setUrl}
         notes={notes}
         setNotes={setNotes}
-        imageDataUrl={imageDataUrl}
-        imageName={imageName}
+        images={images}
+        totalBytes={totalBytes}
         onPickFile={() => fileRef.current?.click()}
-        onClearImage={() => {
-          setImageDataUrl(null);
-          setImageName(null);
-        }}
+        onRemoveImage={(idx) =>
+          setImages((prev) => prev.filter((_, i) => i !== idx))
+        }
+        onClearImages={() => setImages([])}
         onSubmit={() => mutation.mutate()}
         canSubmit={canSubmit}
         loading={mutation.isPending}
@@ -123,10 +166,10 @@ function Index() {
         ref={fileRef}
         type="file"
         accept="image/*"
+        multiple
         hidden
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onFile(f);
+          if (e.target.files) onFiles(e.target.files);
           e.target.value = "";
         }}
       />
