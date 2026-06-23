@@ -177,7 +177,14 @@ function Index() {
       <div ref={reportRef} className="container mx-auto max-w-5xl px-4">
         {mutation.isPending && <AnalyzingAnimation />}
         {mutation.isError && (
-          <ErrorBox message={(mutation.error as Error).message} />
+          <ErrorBox
+            message={(mutation.error as Error).message}
+            onSwitchToImages={() => {
+              setMode("image");
+              setUrl("");
+              mutation.reset();
+            }}
+          />
         )}
         {mutation.data && <ReportView report={mutation.data} />}
       </div>
