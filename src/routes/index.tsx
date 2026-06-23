@@ -461,7 +461,7 @@ function Stat({
 
 function AnalyzingAnimation() {
   const steps = [
-    { label: "SCAN.profile_url", color: "text-primary", n: "+12" },
+    { label: "FETCH.live_page", color: "text-primary", n: "+12" },
     { label: "DETECT.face_landmarks", color: "text-truth", n: "+34" },
     { label: "DETECT.gan_artifacts", color: "text-warning", n: "+17" },
     { label: "VERIFY.bio_consistency", color: "text-truth", n: "+22" },
