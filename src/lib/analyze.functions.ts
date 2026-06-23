@@ -195,7 +195,13 @@ Score five sub-dimensions, each 0-100 (higher = more authentic) with a confidenc
 
 Return a JSON object with these keys: subject_summary, overall_truth_score, confidence_low, confidence_high, verdict, sub_scores, red_flags, green_flags, catfish_risk, ai_generated_photo_risk, recommendation. sub_scores should contain the five dimensions above. Use numeric 0-100 values where requested. Verdict ladder: LIKELY_REAL (80+), MIXED_SIGNALS (60-79), HIGH_RISK (40-59), LIKELY_FAKE (<40).
 
-Tone: blunt, witty, mildly sarcastic — like a skeptical friend. Always include a closing recommendation. If input is minimal, widen the confidence interval and say so. NEVER claim certainty about a real person; frame as probabilistic entertainment.`;
+Tone: blunt, witty, mildly sarcastic — like a skeptical friend. Always include a closing recommendation. If input is minimal, widen the confidence interval and say so. NEVER claim certainty about a real person; frame as probabilistic entertainment.
+
+EVIDENCE DISCIPLINE (HARD RULE — violation = invalid report):
+- Reason ONLY from the supplied SCRAPED CONTENT, attached IMAGES, and USER NOTES.
+- NEVER invent names, employers, schools, ages, cities, photo subjects, or biographical facts not present in the inputs.
+- For any sub-dimension with no supporting evidence, set confidence ≤ 20, note "No evidence in source", and keep score near 50.
+- subject_summary must paraphrase only what the inputs show. If the inputs are thin, say so (e.g. "Limited profile text; minimal photo evidence").`;
 
 export const analyzeProfile = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => InputSchema.parse(input))
@@ -207,19 +213,56 @@ export const analyzeProfile = createServerFn({ method: "POST" })
       throw new Error("Provide a URL, an image, or notes");
     }
 
+    // Real fetch first — refuse to hallucinate if the page is unreachable.
+    let scraped: { markdown: string; title?: string; sourceUrl: string; screenshotUrl?: string } | null =
+      null;
+    if (data.url) {
+      const { scrapeProfile } = await import("./scrape.server");
+      const result = await scrapeProfile(data.url);
+      if (!result.ok) {
+        throw new Error(`UNREACHABLE:${result.reason}:${result.message}`);
+      }
+      scraped = {
+        markdown: result.markdown.slice(0, 8000),
+        title: result.title,
+        sourceUrl: result.sourceUrl,
+        screenshotUrl: result.screenshotUrl,
+      };
+    }
+
+    // Guard against an all-empty request (URL refused, no image, no notes).
+    const hasEvidence =
+      !!scraped || !!data.imageDataUrls?.length || (data.notes?.trim().length ?? 0) >= 20;
+    if (!hasEvidence) {
+      throw new Error(
+        "UNREACHABLE:EMPTY:No usable evidence. Upload a screenshot or paste profile text in Notes.",
+      );
+    }
+
     const gateway = createLovableAiGatewayProvider(key);
 
     const userContent: Array<{ type: "text"; text: string } | { type: "image"; image: string }> =
       [];
 
     const promptParts: string[] = [];
-    if (data.url) promptParts.push(`Profile URL: ${data.url}`);
+    if (data.url) promptParts.push(`Profile URL submitted by user: ${data.url}`);
+    if (scraped) {
+      if (scraped.title) promptParts.push(`Page title: ${scraped.title}`);
+      promptParts.push(
+        `SCRAPED CONTENT (verbatim; do not invent anything beyond this):\n<<<\n${scraped.markdown}\n>>>`,
+      );
+    } else if (data.url) {
+      promptParts.push("(No scraped content available.)");
+    }
     if (data.notes) promptParts.push(`User notes: ${data.notes}`);
-    if (!data.url && !data.notes)
-      promptParts.push("Analyze the attached profile screenshot(s).");
-    promptParts.push("\nReturn the structured DMatch report.");
+    if (data.imageDataUrls?.length)
+      promptParts.push(`User attached ${data.imageDataUrls.length} screenshot(s).`);
+    promptParts.push("\nReturn the structured DMatch report grounded ONLY in the above.");
 
-    userContent.push({ type: "text", text: promptParts.join("\n") });
+    userContent.push({ type: "text", text: promptParts.join("\n\n") });
+    if (scraped?.screenshotUrl) {
+      userContent.push({ type: "image", image: scraped.screenshotUrl });
+    }
     if (data.imageDataUrls?.length) {
       for (const image of data.imageDataUrls) {
         userContent.push({ type: "image", image });
