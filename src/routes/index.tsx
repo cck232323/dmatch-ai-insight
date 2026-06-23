@@ -14,6 +14,7 @@ import {
   Skull,
   Sparkles,
   Upload,
+  X,
   Zap,
 } from "lucide-react";
 import {
@@ -53,13 +54,17 @@ export const Route = createFileRoute("/")({
 
 type Mode = "url" | "image";
 
+type UploadedImage = { dataUrl: string; name: string; size: number };
+
+const MAX_IMAGES = 6;
+const MAX_TOTAL_BYTES = 20 * 1024 * 1024;
+
 function Index() {
   const fn = useServerFn(analyzeProfile);
   const [mode, setMode] = useState<Mode>("url");
   const [url, setUrl] = useState("");
   const [notes, setNotes] = useState("");
-  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
-  const [imageName, setImageName] = useState<string | null>(null);
+  const [images, setImages] = useState<UploadedImage[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
   const reportRef = useRef<HTMLDivElement>(null);
 
@@ -68,7 +73,8 @@ function Index() {
       fn({
         data: {
           url: mode === "url" && url ? url : undefined,
-          imageDataUrl: mode === "image" && imageDataUrl ? imageDataUrl : undefined,
+          imageDataUrls:
+            mode === "image" && images.length ? images.map((i) => i.dataUrl) : undefined,
           notes: notes || undefined,
         },
       }),
@@ -79,23 +85,61 @@ function Index() {
     },
   });
 
-  const onFile = (file: File) => {
-    if (file.size > 6 * 1024 * 1024) {
-      alert("Max 6MB.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setImageDataUrl(reader.result as string);
-      setImageName(file.name);
-    };
-    reader.readAsDataURL(file);
+  const onFiles = (files: FileList | File[]) => {
+    const incoming = Array.from(files);
+    if (!incoming.length) return;
+
+    setImages((prev) => {
+      const next = [...prev];
+      let totalBytes = next.reduce((sum, img) => sum + img.size, 0);
+      let truncated = false;
+      let oversized = false;
+
+      for (const file of incoming) {
+        if (next.length >= MAX_IMAGES) {
+          truncated = true;
+          break;
+        }
+        if (totalBytes + file.size > MAX_TOTAL_BYTES) {
+          oversized = true;
+          continue;
+        }
+        next.push({ dataUrl: "", name: file.name, size: file.size });
+        totalBytes += file.size;
+
+        const idx = next.length - 1;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          setImages((curr) => {
+            const updated = [...curr];
+            // Match by name+size in case order shifted (e.g. user removed one mid-read)
+            const target = updated.findIndex(
+              (img, i) =>
+                i >= 0 && img.name === file.name && img.size === file.size && !img.dataUrl,
+            );
+            if (target >= 0) updated[target] = { ...updated[target], dataUrl };
+            return updated;
+          });
+        };
+        reader.readAsDataURL(file);
+        void idx;
+      }
+
+      if (truncated) alert(`最多上传 ${MAX_IMAGES} 张截图`);
+      else if (oversized) alert("合计大小不超过 20MB，部分图片已跳过");
+
+      return next;
+    });
   };
+
+  const totalBytes = images.reduce((sum, img) => sum + img.size, 0);
+  const allLoaded = images.every((img) => img.dataUrl);
 
   const canSubmit =
     !mutation.isPending &&
     ((mode === "url" && url.trim().length > 0) ||
-      (mode === "image" && imageDataUrl !== null));
+      (mode === "image" && images.length > 0 && allLoaded));
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -107,13 +151,13 @@ function Index() {
         setUrl={setUrl}
         notes={notes}
         setNotes={setNotes}
-        imageDataUrl={imageDataUrl}
-        imageName={imageName}
+        images={images}
+        totalBytes={totalBytes}
         onPickFile={() => fileRef.current?.click()}
-        onClearImage={() => {
-          setImageDataUrl(null);
-          setImageName(null);
-        }}
+        onRemoveImage={(idx) =>
+          setImages((prev) => prev.filter((_, i) => i !== idx))
+        }
+        onClearImages={() => setImages([])}
         onSubmit={() => mutation.mutate()}
         canSubmit={canSubmit}
         loading={mutation.isPending}
@@ -122,10 +166,10 @@ function Index() {
         ref={fileRef}
         type="file"
         accept="image/*"
+        multiple
         hidden
         onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onFile(f);
+          if (e.target.files) onFiles(e.target.files);
           e.target.value = "";
         }}
       />
@@ -187,16 +231,22 @@ type HeroProps = {
   setUrl: (v: string) => void;
   notes: string;
   setNotes: (v: string) => void;
-  imageDataUrl: string | null;
-  imageName: string | null;
+  images: UploadedImage[];
+  totalBytes: number;
   onPickFile: () => void;
-  onClearImage: () => void;
+  onRemoveImage: (idx: number) => void;
+  onClearImages: () => void;
   onSubmit: () => void;
   canSubmit: boolean;
   loading: boolean;
 };
 
+function formatMB(bytes: number): string {
+  return (bytes / (1024 * 1024)).toFixed(1);
+}
+
 function Hero(props: HeroProps) {
+  const hasImages = props.images.length > 0;
   return (
     <section className="scanlines relative overflow-hidden border-b border-border">
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_-10%,rgba(255,45,85,0.18),transparent_60%)]" />
@@ -224,7 +274,7 @@ function Hero(props: HeroProps) {
               <LinkIcon className="h-4 w-4" /> Paste URL
             </ModeTab>
             <ModeTab active={props.mode === "image"} onClick={() => props.setMode("image")}>
-              <Upload className="h-4 w-4" /> Upload screenshot
+              <Upload className="h-4 w-4" /> Upload screenshots
             </ModeTab>
           </div>
 
@@ -238,37 +288,73 @@ function Hero(props: HeroProps) {
                 autoFocus
               />
             ) : (
-              <button
-                type="button"
-                onClick={props.onPickFile}
-                className={cn(
-                  "flex w-full items-center justify-between border border-dashed border-border bg-background px-4 py-6 text-left transition hover:border-primary",
-                  props.imageDataUrl && "border-truth",
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <Upload className="h-5 w-5 text-muted-foreground" />
-                  <div>
-                    <div className="font-display text-sm font-medium">
-                      {props.imageName ?? "Drop a profile screenshot"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      JPG / PNG up to 6MB
+              <div className="space-y-3">
+                <button
+                  type="button"
+                  onClick={props.onPickFile}
+                  disabled={props.images.length >= MAX_IMAGES}
+                  className={cn(
+                    "flex w-full items-center justify-between border border-dashed border-border bg-background px-4 py-6 text-left transition hover:border-primary disabled:cursor-not-allowed disabled:opacity-60",
+                    hasImages && "border-truth",
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <Upload className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <div className="font-display text-sm font-medium">
+                        {hasImages
+                          ? `已选 ${props.images.length}/${MAX_IMAGES} · ${formatMB(props.totalBytes)}MB / 20MB`
+                          : "Drop profile screenshots"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        JPG / PNG · up to {MAX_IMAGES} images · 20MB total
+                      </div>
                     </div>
                   </div>
-                </div>
-                {props.imageDataUrl && (
-                  <span
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      props.onClearImage();
-                    }}
-                    className="font-mono text-xs text-muted-foreground underline"
-                  >
-                    clear
-                  </span>
+                  {hasImages && (
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        props.onClearImages();
+                      }}
+                      className="font-mono text-xs text-muted-foreground underline"
+                    >
+                      clear all
+                    </span>
+                  )}
+                </button>
+
+                {hasImages && (
+                  <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+                    {props.images.map((img, idx) => (
+                      <div
+                        key={`${img.name}-${idx}`}
+                        className="group relative aspect-square overflow-hidden border border-border bg-background"
+                      >
+                        {img.dataUrl ? (
+                          <img
+                            src={img.dataUrl}
+                            alt={img.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => props.onRemoveImage(idx)}
+                          aria-label={`Remove ${img.name}`}
+                          className="absolute right-1 top-1 grid h-5 w-5 place-items-center border border-border bg-background/90 text-foreground opacity-90 transition hover:bg-primary hover:text-primary-foreground"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 )}
-              </button>
+              </div>
             )}
 
             <Textarea
