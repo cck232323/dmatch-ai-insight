@@ -203,7 +203,7 @@ export const analyzeProfile = createServerFn({ method: "POST" })
     const key = process.env.LOVABLE_API_KEY;
     if (!key) throw new Error("Missing LOVABLE_API_KEY");
 
-    if (!data.url && !data.imageDataUrl && !data.notes) {
+    if (!data.url && !data.imageDataUrls?.length && !data.notes) {
       throw new Error("Provide a URL, an image, or notes");
     }
 
@@ -215,12 +215,15 @@ export const analyzeProfile = createServerFn({ method: "POST" })
     const promptParts: string[] = [];
     if (data.url) promptParts.push(`Profile URL: ${data.url}`);
     if (data.notes) promptParts.push(`User notes: ${data.notes}`);
-    if (!data.url && !data.notes) promptParts.push("Analyze the attached profile screenshot.");
+    if (!data.url && !data.notes)
+      promptParts.push("Analyze the attached profile screenshot(s).");
     promptParts.push("\nReturn the structured DMatch report.");
 
     userContent.push({ type: "text", text: promptParts.join("\n") });
-    if (data.imageDataUrl) {
-      userContent.push({ type: "image", image: data.imageDataUrl });
+    if (data.imageDataUrls?.length) {
+      for (const image of data.imageDataUrls) {
+        userContent.push({ type: "image", image });
+      }
     }
 
     try {
