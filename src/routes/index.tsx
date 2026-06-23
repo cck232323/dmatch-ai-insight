@@ -499,23 +499,91 @@ function AnalyzingAnimation() {
 
 /* ---------- Error ---------- */
 
-function ErrorBox({ message }: { message: string }) {
-  const friendly = message.startsWith("RATE_LIMIT")
-    ? "Slow down, detective. Try again in a minute."
-    : message.startsWith("CREDITS")
-      ? "Workspace AI credits exhausted. Top up to keep hunting."
-      : message;
+function ErrorBox({
+  message,
+  onSwitchToImages,
+}: {
+  message: string;
+  onSwitchToImages: () => void;
+}) {
+  const { headline, body, showSwitch } = interpretError(message);
   return (
     <div className="my-12 flex items-start gap-3 border border-primary bg-primary/10 p-5 font-mono text-sm">
       <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-      <div>
+      <div className="flex-1">
         <div className="font-display text-base font-bold uppercase tracking-wide text-primary">
-          Mission failed
+          {headline}
         </div>
-        <div className="mt-1 text-muted-foreground">{friendly}</div>
+        <div className="mt-1 text-muted-foreground">{body}</div>
+        {showSwitch && (
+          <button
+            type="button"
+            onClick={onSwitchToImages}
+            className="mt-3 inline-flex items-center gap-2 border border-primary bg-primary px-3 py-1.5 font-display text-xs font-bold uppercase tracking-widest text-primary-foreground transition hover:opacity-90"
+          >
+            <Upload className="h-3.5 w-3.5" /> Switch to screenshots
+          </button>
+        )}
       </div>
     </div>
   );
+}
+
+function interpretError(raw: string): { headline: string; body: string; showSwitch: boolean } {
+  if (raw.startsWith("RATE_LIMIT"))
+    return {
+      headline: "Slow down, detective",
+      body: "Too many requests. Try again in a minute.",
+      showSwitch: false,
+    };
+  if (raw.startsWith("CREDITS"))
+    return {
+      headline: "Out of AI credits",
+      body: "Workspace AI credits exhausted. Top up to keep hunting.",
+      showSwitch: false,
+    };
+  if (raw.startsWith("UNREACHABLE:")) {
+    const [, reason] = raw.split(":");
+    switch (reason) {
+      case "LOGIN_WALL":
+        return {
+          headline: "Page requires login",
+          body: "这个主页对外部爬虫不开放（登录墙）。请改为上传 1-6 张截图，或把 bio 粘到 Notes，DMatch 只对真实证据打分。",
+          showSwitch: true,
+        };
+      case "NOT_FOUND":
+        return {
+          headline: "Profile not found",
+          body: "链接打不开（404）。检查 URL 是否正确，或改为上传截图。",
+          showSwitch: true,
+        };
+      case "BLOCKED":
+        return {
+          headline: "Site blocked us",
+          body: "目标站点拒绝了抓取请求。改用截图上传即可。",
+          showSwitch: true,
+        };
+      case "TIMEOUT":
+        return {
+          headline: "Fetch timed out",
+          body: "页面加载超时。可以稍后重试，或直接上传截图。",
+          showSwitch: true,
+        };
+      case "EMPTY":
+        return {
+          headline: "No evidence to analyze",
+          body: "页面几乎没有可读内容。请上传截图或在 Notes 粘贴 bio 文本。",
+          showSwitch: true,
+        };
+      default:
+        return {
+          headline: "Could not fetch page",
+          body: "抓取失败，避免胡编结果。请改为上传截图。",
+          showSwitch: true,
+        };
+    }
+  }
+  return { headline: "Mission failed", body: raw, showSwitch: false };
 }
 
 /* ---------- Report ---------- */
