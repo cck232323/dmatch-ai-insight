@@ -367,11 +367,44 @@ function isXhsHost(host: string): boolean {
   );
 }
 
+function isXhsShortLinkHost(host: string): boolean {
+  return host.includes("xhslink.com") || host.includes("xhs.cn");
+}
+
+function isXhsMobileHost(host: string): boolean {
+  return host.startsWith("m.xiaohongshu.com") || host.includes(".m.xiaohongshu.com");
+}
+
+function isXhsProfilePath(pathname: string): boolean {
+  return /\/user\/profile\//.test(pathname);
+}
+
+function isXhsNoteDetailPath(pathname: string): boolean {
+  return /\/(discovery\/item|explore)\//.test(pathname);
+}
+
 function shouldBlockRedirect(host: string): boolean {
-  // Keep the previous anti-redirect policy for dating-app short links, but allow
-  // Xiaohongshu/Rednote links to reach the real profile page so Firecrawl can
-  // close the login modal after the SPA loads.
+  // We resolve XHS short links ourselves below, so the generic redirect guard
+  // still applies to every other host (dating-app short links, etc.).
   return !isXhsHost(host);
+}
+
+async function resolveXhsShortLink(
+  startUrl: string,
+  maxHops: number = 5,
+): Promise<{ ok: true; finalUrl: string } | { ok: false; message: string }> {
+  let current = startUrl;
+  for (let hop = 0; hop < maxHops; hop++) {
+    const inspection = await inspectFirstRedirect(current);
+    if (inspection.kind === "error") {
+      return { ok: false, message: inspection.message };
+    }
+    if (inspection.kind === "none") {
+      return { ok: true, finalUrl: current };
+    }
+    current = inspection.location;
+  }
+  return { ok: true, finalUrl: current };
 }
 
 function getXhsModalState(markdown: string): string | undefined {
@@ -400,12 +433,18 @@ function getScrapeOptions(host: string) {
 
   if (!isXhsHost(host)) return baseOptions;
 
+  // Only the m.xiaohongshu.com host actually renders mobile H5. Forcing
+  // mobile UA on the desktop www.xiaohongshu.com profile makes Firecrawl
+  // land on an uncloseable "open in app" interstitial instead of the
+  // public profile page.
+  const useMobile = isXhsMobileHost(host);
+
   return {
     ...baseOptions,
     onlyMainContent: false,
     waitFor: 5000,
     timeout: 45000,
-    mobile: true,
+    mobile: useMobile,
     location: {
       country: "CN",
       languages: ["zh-CN", "zh"],
@@ -420,6 +459,8 @@ function getScrapeOptions(host: string) {
     ],
   };
 }
+
+
 
 
 export async function scrapeProfile(url: string): Promise<ScrapeResult> {
