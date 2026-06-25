@@ -463,7 +463,7 @@ export async function scrapeProfile(url: string): Promise<ScrapeResult> {
 
   let raw: FirecrawlDoc;
   try {
-    raw = (await firecrawl.scrape(url, getScrapeOptions(host))) as FirecrawlDoc;
+    raw = (await firecrawl.scrape(url, getScrapeOptions(host) as Parameters<typeof firecrawl.scrape>[1])) as FirecrawlDoc;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (/402|payment|credits/i.test(message)) {
