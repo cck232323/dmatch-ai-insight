@@ -367,11 +367,44 @@ function isXhsHost(host: string): boolean {
   );
 }
 
+function isXhsShortLinkHost(host: string): boolean {
+  return host.includes("xhslink.com") || host.includes("xhs.cn");
+}
+
+function isXhsMobileHost(host: string): boolean {
+  return host.startsWith("m.xiaohongshu.com") || host.includes(".m.xiaohongshu.com");
+}
+
+function isXhsProfilePath(pathname: string): boolean {
+  return /\/user\/profile\//.test(pathname);
+}
+
+function isXhsNoteDetailPath(pathname: string): boolean {
+  return /\/(discovery\/item|explore)\//.test(pathname);
+}
+
 function shouldBlockRedirect(host: string): boolean {
-  // Keep the previous anti-redirect policy for dating-app short links, but allow
-  // Xiaohongshu/Rednote links to reach the real profile page so Firecrawl can
-  // close the login modal after the SPA loads.
+  // We resolve XHS short links ourselves below, so the generic redirect guard
+  // still applies to every other host (dating-app short links, etc.).
   return !isXhsHost(host);
+}
+
+async function resolveXhsShortLink(
+  startUrl: string,
+  maxHops: number = 5,
+): Promise<{ ok: true; finalUrl: string } | { ok: false; message: string }> {
+  let current = startUrl;
+  for (let hop = 0; hop < maxHops; hop++) {
+    const inspection = await inspectFirstRedirect(current);
+    if (inspection.kind === "error") {
+      return { ok: false, message: inspection.message };
+    }
+    if (inspection.kind === "none") {
+      return { ok: true, finalUrl: current };
+    }
+    current = inspection.location;
+  }
+  return { ok: true, finalUrl: current };
 }
 
 function getXhsModalState(markdown: string): string | undefined {
@@ -400,12 +433,18 @@ function getScrapeOptions(host: string) {
 
   if (!isXhsHost(host)) return baseOptions;
 
+  // Only the m.xiaohongshu.com host actually renders mobile H5. Forcing
+  // mobile UA on the desktop www.xiaohongshu.com profile makes Firecrawl
+  // land on an uncloseable "open in app" interstitial instead of the
+  // public profile page.
+  const useMobile = isXhsMobileHost(host);
+
   return {
     ...baseOptions,
     onlyMainContent: false,
     waitFor: 5000,
     timeout: 45000,
-    mobile: true,
+    mobile: useMobile,
     location: {
       country: "CN",
       languages: ["zh-CN", "zh"],
@@ -422,6 +461,8 @@ function getScrapeOptions(host: string) {
 }
 
 
+
+
 export async function scrapeProfile(url: string): Promise<ScrapeResult> {
   const apiKey = process.env.FIRECRAWL_API_KEY;
   if (!apiKey) {
@@ -429,41 +470,94 @@ export async function scrapeProfile(url: string): Promise<ScrapeResult> {
   }
 
   let host = "";
+  let pathname = "";
   try {
-    host = new URL(url).hostname.toLowerCase();
+    const parsed = new URL(url);
+    host = parsed.hostname.toLowerCase();
+    pathname = parsed.pathname;
   } catch {
     return { ok: false, reason: "ERROR", message: "Invalid URL" };
   }
 
-  const redirect = await inspectFirstRedirect(url);
-  if (redirect.kind === "error") {
-    return {
-      ok: false,
-      reason: "ERROR",
-      message: `Could not safely inspect redirects before scraping: ${redirect.message}`,
-    };
+  let scrapeUrl = url;
+
+  // XHS short links (xhslink.com/m/*, xhs.cn/*) almost always 302 to a mobile
+  // H5 "open in app" interstitial or a note-detail page, neither of which
+  // expose a closable login modal. Resolve the redirect chain ourselves so we
+  // can route based on the real destination instead of forcing mobile UA on
+  // every xhs host.
+  if (isXhsShortLinkHost(host)) {
+    const resolved = await resolveXhsShortLink(url);
+    if (!resolved.ok) {
+      return {
+        ok: false,
+        reason: "ERROR",
+        message: `Could not resolve Xiaohongshu short link: ${resolved.message}`,
+      };
+    }
+    scrapeUrl = resolved.finalUrl;
+    try {
+      const parsed = new URL(scrapeUrl);
+      host = parsed.hostname.toLowerCase();
+      pathname = parsed.pathname;
+    } catch {
+      return { ok: false, reason: "ERROR", message: "Resolved Xiaohongshu URL is invalid" };
+    }
+  } else {
+    const redirect = await inspectFirstRedirect(url);
+    if (redirect.kind === "error") {
+      return {
+        ok: false,
+        reason: "ERROR",
+        message: `Could not safely inspect redirects before scraping: ${redirect.message}`,
+      };
+    }
+    if (redirect.kind === "redirect" && shouldBlockRedirect(host)) {
+      return {
+        ok: true,
+        sourceUrl: url,
+        title: "Redirect-only profile URL",
+        markdown: [
+          "REDIRECT INSPECTION ONLY",
+          `Submitted URL: ${url}`,
+          `First response: HTTP ${redirect.status}`,
+          `First-hop Location: ${redirect.location}`,
+          "Policy: DMatch does not follow pasted URL redirects. The destination page was not fetched or opened.",
+          "Evidence available: redirect metadata only. Treat profile authenticity confidence as low unless user notes or screenshots are also supplied.",
+        ].join("\n"),
+      };
+    }
   }
-  if (redirect.kind === "redirect" && shouldBlockRedirect(host)) {
-    return {
-      ok: true,
-      sourceUrl: url,
-      title: "Redirect-only profile URL",
-      markdown: [
-        "REDIRECT INSPECTION ONLY",
-        `Submitted URL: ${url}`,
-        `First response: HTTP ${redirect.status}`,
-        `First-hop Location: ${redirect.location}`,
-        "Policy: DMatch does not follow pasted URL redirects. The destination page was not fetched or opened.",
-        "Evidence available: redirect metadata only. Treat profile authenticity confidence as low unless user notes or screenshots are also supplied.",
-      ].join("\n"),
-    };
+
+  // After resolving, hard-block XHS destinations that we know cannot yield
+  // public profile HTML — the mobile H5 wall and the note-detail page are
+  // login-gated end-to-end. Returning LOGIN_WALL now avoids burning a
+  // Firecrawl scrape just to come back with the same answer.
+  if (isXhsHost(host)) {
+    if (isXhsMobileHost(host)) {
+      return {
+        ok: false,
+        reason: "LOGIN_WALL",
+        message:
+          "This Xiaohongshu short link points to the mobile H5 'open in app' page, which is not publicly scrapable. Paste the desktop profile URL (www.xiaohongshu.com/user/profile/...) or upload screenshots.",
+      };
+    }
+    if (isXhsNoteDetailPath(pathname) && !isXhsProfilePath(pathname)) {
+      return {
+        ok: false,
+        reason: "LOGIN_WALL",
+        message:
+          "This Xiaohongshu link is a note detail page, which requires login. Paste the user's profile URL (www.xiaohongshu.com/user/profile/...) or upload screenshots.",
+      };
+    }
   }
 
   const firecrawl = new Firecrawl({ apiKey });
 
   let raw: FirecrawlDoc;
   try {
-    raw = (await firecrawl.scrape(url, getScrapeOptions(host) as unknown as Parameters<typeof firecrawl.scrape>[1])) as FirecrawlDoc;
+    raw = (await firecrawl.scrape(scrapeUrl, getScrapeOptions(host) as unknown as Parameters<typeof firecrawl.scrape>[1])) as FirecrawlDoc;
+
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (/402|payment|credits/i.test(message)) {
