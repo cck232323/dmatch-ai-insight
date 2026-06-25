@@ -392,7 +392,7 @@ function hasXhsLoginWallContent(markdown: string): boolean {
 
 function getScrapeOptions(host: string) {
   const baseOptions = {
-    formats: ["markdown", "screenshot"],
+    formats: ["markdown", "screenshot"] as const,
     onlyMainContent: true,
     waitFor: 1500,
     timeout: 25000,
@@ -411,15 +411,16 @@ function getScrapeOptions(host: string) {
       languages: ["zh-CN", "zh"],
     },
     actions: [
-      { type: "wait", milliseconds: 5000 },
-      { type: "executeJavascript", script: XHS_CLOSE_LOGIN_MODAL_SCRIPT },
-      { type: "wait", milliseconds: 1000 },
-      { type: "scroll", direction: "down" },
-      { type: "wait", milliseconds: 500 },
-      { type: "scrape" },
+      { type: "wait", milliseconds: 5000 } as const,
+      { type: "executeJavascript", script: XHS_CLOSE_LOGIN_MODAL_SCRIPT } as const,
+      { type: "wait", milliseconds: 1000 } as const,
+      { type: "scroll", direction: "down" } as const,
+      { type: "wait", milliseconds: 500 } as const,
+      { type: "scrape" } as const,
     ],
   };
 }
+
 
 export async function scrapeProfile(url: string): Promise<ScrapeResult> {
   const apiKey = process.env.FIRECRAWL_API_KEY;
