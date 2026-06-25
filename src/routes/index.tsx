@@ -290,7 +290,7 @@ function Hero(props: HeroProps) {
               <Input
                 value={props.url}
                 onChange={(e) => props.setUrl(e.target.value)}
-                placeholder="https://tinder.com/@... or linkedin.com/in/..."
+                placeholder="paste your social media profile link here..."
                 className="h-12 border-input bg-background font-mono text-base focus-visible:ring-primary"
                 autoFocus
               />
