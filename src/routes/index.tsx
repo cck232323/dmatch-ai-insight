@@ -35,17 +35,16 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "DMatch — TA 是真的吗？AI 约会主页测谎仪" },
+      { title: "DMatch — AI 社交展示面偏离度分析" },
       {
         name: "description",
         content:
-          "粘贴 Tinder / Hinge / Bumble / Soul / LinkedIn 主页链接或上传截图，DMatch 用 AI 给出真假置信度评分。Entertainment only.",
+          "粘贴社交主页或上传截图，DMatch 用 AI 标记精修、包装和夸大信号，评估展示面与现实可能存在的偏离程度。",
       },
-      { property: "og:title", content: "DMatch — TA 是真的吗？" },
+      { property: "og:title", content: "DMatch — AI 社交展示面偏离度分析" },
       {
         property: "og:description",
-        content:
-          "AI 给约会主页打真假分。美国约会太复杂，日本帅哥太匮乏 — 用就用 DMatch.",
+        content: "AI 分析社交媒体展示面：哪些是精修、包装、夸大，展示面和现实可能偏离多少。",
       },
     ],
   }),
@@ -154,9 +153,7 @@ function Index() {
         images={images}
         totalBytes={totalBytes}
         onPickFile={() => fileRef.current?.click()}
-        onRemoveImage={(idx) =>
-          setImages((prev) => prev.filter((_, i) => i !== idx))
-        }
+        onRemoveImage={(idx) => setImages((prev) => prev.filter((_, i) => i !== idx))}
         onClearImages={() => setImages([])}
         onSubmit={() => mutation.mutate()}
         canSubmit={canSubmit}
@@ -222,7 +219,7 @@ function Header() {
           </a>
         </nav>
         <Button size="sm" variant="default" className="font-display tracking-wide">
-          ENTER THE ARENA
+          START SCAN
         </Button>
       </div>
     </header>
@@ -259,19 +256,17 @@ function Hero(props: HeroProps) {
       <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_50%_-10%,rgba(255,45,85,0.18),transparent_60%)]" />
       <div className="container mx-auto max-w-5xl px-4 pb-16 pt-20 text-center md:pt-28">
         <p className="mb-4 inline-flex items-center gap-2 border border-primary/40 bg-primary/10 px-3 py-1 font-mono text-xs uppercase tracking-widest text-primary">
-          <Flame className="h-3.5 w-3.5" /> AI Profile Lie Detector · Beta
+          <Flame className="h-3.5 w-3.5" /> AI Profile Reality Gap · Beta
         </p>
 
         <h1 className="glitch font-display text-5xl font-bold leading-[0.95] tracking-tighter md:text-7xl lg:text-8xl">
-          TA 是真的吗？
+          展示面偏离度
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-balance font-display text-xl tracking-tight text-muted-foreground md:text-2xl">
-          粘贴主页 · 上传截图 · 一键拆穿。
+          粘贴主页 · 上传截图 · AI 标记包装信号。
           <br />
-          <span className="text-foreground">
-            美国约会太复杂，日本帅哥太匮乏 —
-          </span>{" "}
-          <span className="text-primary">用就用 DMatch.</span>
+          <span className="text-foreground">精修、滤镜、身份包装、生活方式夸大 —</span>{" "}
+          <span className="text-primary">偏离越多，分数越低。</span>
         </p>
 
         {/* Input card */}
@@ -290,7 +285,7 @@ function Hero(props: HeroProps) {
               <Input
                 value={props.url}
                 onChange={(e) => props.setUrl(e.target.value)}
-                placeholder="paste your social media profile link here..."
+                placeholder="paste a social profile link here..."
                 className="h-12 border-input bg-background font-mono text-base focus-visible:ring-primary"
                 autoFocus
               />
@@ -367,7 +362,7 @@ function Hero(props: HeroProps) {
             <Textarea
               value={props.notes}
               onChange={(e) => props.setNotes(e.target.value)}
-              placeholder="Optional: paste their bio, age, job claim, anything sus..."
+              placeholder="Optional: paste bio, age, job claim, lifestyle claims..."
               rows={2}
               className="border-input bg-background text-sm"
             />
@@ -380,27 +375,27 @@ function Hero(props: HeroProps) {
               {props.loading ? (
                 <>
                   <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  ANALYZING TARGET…
+                  ANALYZING SIGNALS…
                 </>
               ) : (
                 <>
                   <Zap className="mr-2 h-5 w-5 transition group-hover:rotate-12" />
-                  RUN LIE DETECTOR
+                  ANALYZE REALITY GAP
                 </>
               )}
             </Button>
 
             <p className="text-center font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              Entertainment only. Not a verification service. Be kind.
+              Probabilistic AI analysis. Not verification. Be kind.
             </p>
           </div>
         </div>
 
         {/* Trust bar */}
         <div className="mt-12 grid grid-cols-3 gap-4 text-center font-display md:gap-12">
-          <Stat n="4.3M" l="profiles scored" />
-          <Stat n="68%" l="flagged as sus" color="primary" />
-          <Stat n="0.9s" l="avg time-to-truth" color="truth" />
+          <Stat n="4.3M" l="profiles analyzed" />
+          <Stat n="68%" l="packaging signals found" color="primary" />
+          <Stat n="0.9s" l="avg signal scan" color="truth" />
         </div>
       </div>
     </section>
@@ -442,11 +437,7 @@ function Stat({
   color?: "foreground" | "primary" | "truth";
 }) {
   const colorClass =
-    color === "primary"
-      ? "text-primary"
-      : color === "truth"
-        ? "text-truth"
-        : "text-foreground";
+    color === "primary" ? "text-primary" : color === "truth" ? "text-truth" : "text-foreground";
   return (
     <div>
       <div className={cn("text-3xl font-bold md:text-5xl", colorClass)}>{n}</div>
@@ -487,7 +478,10 @@ function AnalyzingAnimation() {
               <Sparkles className={cn("h-3.5 w-3.5", s.color)} />
               {s.label}
             </span>
-            <span className={cn("dmg-pop", s.color)} style={{ animationDelay: `${i * 240 + 200}ms` }}>
+            <span
+              className={cn("dmg-pop", s.color)}
+              style={{ animationDelay: `${i * 240 + 200}ms` }}
+            >
               {s.n}
             </span>
           </div>
@@ -636,11 +630,16 @@ function ReportView({ report }: { report: AnalysisReport }) {
           <SubRadar data={report.sub_scores} />
           <div className="mt-4 grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
             {report.sub_scores.map((s) => (
-              <div key={s.name} className="flex items-center justify-between border border-border bg-background px-3 py-2">
+              <div
+                key={s.name}
+                className="flex items-center justify-between border border-border bg-background px-3 py-2"
+              >
                 <span className="truncate text-xs">{s.name}</span>
                 <span className={cn("font-display font-bold", scoreColor(s.score))}>
                   {s.score}
-                  <span className="ml-1 text-[10px] text-muted-foreground">±{Math.round((100 - s.confidence) / 2)}</span>
+                  <span className="ml-1 text-[10px] text-muted-foreground">
+                    ±{Math.round((100 - s.confidence) / 2)}
+                  </span>
                 </span>
               </div>
             ))}
@@ -659,18 +658,8 @@ function ReportView({ report }: { report: AnalysisReport }) {
 
       {/* Flags */}
       <div className="grid gap-6 md:grid-cols-2">
-        <FlagList
-          title="Red flags"
-          items={report.red_flags}
-          tone="danger"
-          icon={AlertTriangle}
-        />
-        <FlagList
-          title="Green flags"
-          items={report.green_flags}
-          tone="truth"
-          icon={CheckCircle2}
-        />
+        <FlagList title="Red flags" items={report.red_flags} tone="danger" icon={AlertTriangle} />
+        <FlagList title="Green flags" items={report.green_flags} tone="truth" icon={CheckCircle2} />
       </div>
 
       {/* CTA strip */}
@@ -733,15 +722,7 @@ function scoreColor(n: number) {
   return "text-primary";
 }
 
-function ScoreRing({
-  score,
-  low,
-  high,
-}: {
-  score: number;
-  low: number;
-  high: number;
-}) {
+function ScoreRing({ score, low, high }: { score: number; low: number; high: number }) {
   const size = 200;
   const stroke = 14;
   const r = (size - stroke) / 2;
@@ -749,11 +730,7 @@ function ScoreRing({
   const dash = (score / 100) * c;
   const color = scoreColor(score).replace("text-", "");
   const cssColor =
-    color === "truth"
-      ? "var(--truth)"
-      : color === "warning"
-        ? "var(--warning)"
-        : "var(--danger)";
+    color === "truth" ? "var(--truth)" : color === "warning" ? "var(--warning)" : "var(--danger)";
 
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
@@ -865,7 +842,12 @@ function FlagList({
   const borderClass = tone === "danger" ? "border-primary/40" : "border-truth/40";
   return (
     <div className={cn("border bg-card p-5", borderClass)}>
-      <h3 className={cn("mb-3 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-wide", color)}>
+      <h3
+        className={cn(
+          "mb-3 flex items-center gap-2 font-display text-lg font-bold uppercase tracking-wide",
+          color,
+        )}
+      >
         <Icon className="h-5 w-5" /> {title}
       </h3>
       {items.length === 0 ? (
@@ -874,7 +856,12 @@ function FlagList({
         <ul className="space-y-2 text-sm">
           {items.map((it, i) => (
             <li key={i} className="flex items-start gap-2">
-              <span className={cn("mt-1 inline-block h-1.5 w-1.5 shrink-0", `bg-${tone === "danger" ? "primary" : "truth"}`)} />
+              <span
+                className={cn(
+                  "mt-1 inline-block h-1.5 w-1.5 shrink-0",
+                  `bg-${tone === "danger" ? "primary" : "truth"}`,
+                )}
+              />
               <span>{it}</span>
             </li>
           ))}
@@ -889,15 +876,15 @@ function FlagList({
 function SocialProof() {
   const quotes = [
     {
-      q: "Caught my Hinge match using a 2017 photo. DMatch saved my Friday.",
+      q: "The profile looked perfect. DMatch showed which parts were probably staged.",
       a: "— Maya, Brooklyn",
     },
     {
-      q: "I scored 91. I am, in fact, real.",
+      q: "Useful reality check: photos, bio, status signals, all scored in one view.",
       a: "— Kenji, 渋谷",
     },
     {
-      q: "Ran it on my ex's new LinkedIn. Worth the $14.99 just for the radar chart.",
+      q: "Not a background check. More like a bullshit-to-reality distance meter.",
       a: "— anonymous PM",
     },
   ];
@@ -905,7 +892,7 @@ function SocialProof() {
     <section id="how" className="border-t border-border bg-card/40 py-20">
       <div className="container mx-auto max-w-5xl px-4">
         <h2 className="text-center font-display text-3xl font-bold tracking-tight md:text-5xl">
-          Field reports.
+          What it reads.
         </h2>
         <div className="mt-10 grid gap-4 md:grid-cols-3">
           {quotes.map((q, i) => (
@@ -929,8 +916,8 @@ function Pricing() {
     {
       name: "Free",
       price: "$0",
-      desc: "Find out who's lying.",
-      features: ["3 scans / day", "URL + screenshot input", "Basic truth score"],
+      desc: "Check the surface.",
+      features: ["3 scans / day", "URL + screenshot input", "Basic reality-gap score"],
       cta: "Start scanning",
       highlight: false,
     },
@@ -938,10 +925,10 @@ function Pricing() {
       name: "Pro",
       price: "$14.99",
       sub: "/ month",
-      desc: "Hunt at scale.",
+      desc: "Read signals faster.",
       features: [
         "Unlimited scans",
-        "Deep dossier (photo EXIF, reverse search)",
+        "Deeper photo and claim analysis",
         "Batch URL upload",
         "Compare two profiles",
         "Export PDF report",
@@ -952,7 +939,7 @@ function Pricing() {
     {
       name: "Lifetime",
       price: "$79",
-      desc: "One-time. Never lied to again.",
+      desc: "One-time. Keep the radar.",
       features: ["Everything in Pro", "Forever", "Early access to Reverse-Match"],
       cta: "Buy once",
       highlight: false,
@@ -962,10 +949,10 @@ function Pricing() {
     <section id="pricing" className="border-t border-border py-20">
       <div className="container mx-auto max-w-5xl px-4">
         <h2 className="text-center font-display text-3xl font-bold tracking-tight md:text-5xl">
-          The truth is cheap.
+          Reality gap, scored.
         </h2>
         <p className="mt-3 text-center text-muted-foreground">
-          Lies cost more. Pick a plan.
+          More polish, packaging, and exaggeration means a lower score.
         </p>
         <div className="mt-12 grid gap-4 md:grid-cols-3">
           {tiers.map((t) => (
@@ -985,9 +972,7 @@ function Pricing() {
               <div className="mt-1 text-sm text-muted-foreground">{t.desc}</div>
               <div className="mt-4 flex items-baseline gap-1">
                 <span className="font-display text-4xl font-bold">{t.price}</span>
-                {t.sub && (
-                  <span className="font-mono text-xs text-muted-foreground">{t.sub}</span>
-                )}
+                {t.sub && <span className="font-mono text-xs text-muted-foreground">{t.sub}</span>}
               </div>
               <ul className="my-6 flex-1 space-y-2 text-sm">
                 {t.features.map((f) => (
@@ -1017,10 +1002,8 @@ function Footer() {
   return (
     <footer className="border-t border-border py-10">
       <div className="container mx-auto flex max-w-6xl flex-col gap-3 px-4 text-center font-mono text-xs uppercase tracking-widest text-muted-foreground md:flex-row md:justify-between">
-        <span>
-          © {new Date().getFullYear()} DMatch · Truth · Speed · Petty satisfaction.
-        </span>
-        <span>Entertainment only · Be kind · No catfish were harmed</span>
+        <span>© {new Date().getFullYear()} DMatch · Reality gap · Signal scan.</span>
+        <span>AI estimate only · Not verification · Be kind</span>
       </div>
     </footer>
   );
